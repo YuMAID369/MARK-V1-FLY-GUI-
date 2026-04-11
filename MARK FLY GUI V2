@@ -1,0 +1,198 @@
+-- [[ CUBNIT FLY - V21 SPEED MOTION FOV UPDATE ]] --
+local plr = game.Players.LocalPlayer
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService") -- Para suavizar a câmera
+
+local flying = false
+local boostLevel = 0 
+local currentFlySpeed = 50
+local moveVector = Vector3.new(0,0,0)
+local activeTouch = nil 
+
+-- [[ CONFIGURAÇÕES DE ANIMAÇÃO ]] --
+local ANIMS = {
+    IDLE = {id = 89068086839142, speed = 1, priority = Enum.AnimationPriority.Action4, freezeAt = nil}, 
+    WALK = {id = 115638214618522, speed = 1.5, priority = Enum.AnimationPriority.Action4, freezeAt = nil}, 
+    RUN  = {id = 101539681854382, speed = 1.2, priority = Enum.AnimationPriority.Action4, freezeAt = 1.1}   
+}
+
+local Assets = Instance.new("ScreenGui", plr.PlayerGui)
+Assets.Name = "Cubnit_Fly_v21_Final"
+Assets.ResetOnSpawn = false
+
+-- [[ INTERFACE ]] --
+local function styleButton(btn, text, color, pos)
+    btn.Size = UDim2.new(0, 130, 0, 50)
+    btn.Position = pos
+    btn.BackgroundColor3 = color
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(220, 220, 220)
+    btn.Font = Enum.Font.GothamBold; btn.TextSize = 22
+    btn.ZIndex = 10; btn.BorderSizePixel = 0
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0.5, 0)
+    local stroke = Instance.new("UIStroke", btn)
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; stroke.Thickness = 2.5
+end
+
+local ButtonFrame = Instance.new("Frame", Assets)
+ButtonFrame.Size = UDim2.new(0, 140, 0, 110)
+ButtonFrame.Position = UDim2.new(0.85, 0, 0.4, 0)
+ButtonFrame.BackgroundTransparency = 1
+
+local BoostBtn = Instance.new("TextButton", ButtonFrame)
+styleButton(BoostBtn, "BOOST", Color3.fromRGB(0, 100, 180), UDim2.new(0, 0, 0, 0))
+BoostBtn.Visible = false
+
+local MainBtn = Instance.new("TextButton", ButtonFrame)
+styleButton(MainBtn, "FLY", Color3.fromRGB(80, 20, 30), UDim2.new(0, 0, 0, 55))
+
+-- Analógico Invisível
+local AnalogBase = Instance.new("Frame", Assets)
+AnalogBase.Size = UDim2.new(0, 220, 0, 220)
+AnalogBase.Position = UDim2.new(0.05, 0, 0.58, 0)
+AnalogBase.BackgroundTransparency = 1; AnalogBase.Visible = false
+
+AnalogBase.InputBegan:Connect(function(input)
+    if (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1) and not activeTouch then
+        activeTouch = input
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if input == activeTouch then
+        local basePos = AnalogBase.AbsolutePosition + (AnalogBase.AbsoluteSize / 2)
+        local inputPos = Vector2.new(input.Position.X, input.Position.Y)
+        local diff = inputPos - basePos
+        if diff.Magnitude > 10 then
+            local dir = diff.Unit
+            moveVector = Vector3.new(dir.X, 0, dir.Y)
+        else
+            moveVector = Vector3.new(0,0,0)
+        end
+    end
+end)
+
+UIS.InputEnded:Connect(function(input)
+    if input == activeTouch then activeTouch = nil; moveVector = Vector3.new(0, 0, 0) end
+end)
+
+-- [[ SISTEMA DE ANIMAÇÃO ]] --
+local currentTrack = nil
+local lastAnimId = nil
+
+local function PlayUniversalAnim(animData)
+    local char = plr.Character
+    if not char or not char:FindFirstChild("Humanoid") then return end
+    local animIdStr = "rbxassetid://"..tostring(animData.id)
+    if lastAnimId == animIdStr then return end
+    lastAnimId = animIdStr
+    if currentTrack then currentTrack:Stop(0.3) end
+    local success, asset = pcall(function() return game:GetObjects(animIdStr)[1] end)
+    if success and asset and asset:IsA("Animation") then
+        currentTrack = char.Humanoid:LoadAnimation(asset)
+    else
+        local animObj = Instance.new("Animation"); animObj.AnimationId = animIdStr
+        currentTrack = char.Humanoid:LoadAnimation(animObj)
+    end
+    if currentTrack then
+        currentTrack.Priority = animData.priority
+        currentTrack:Play(0.3); currentTrack:AdjustSpeed(animData.speed)
+        if animData.freezeAt then
+            local thisId = animIdStr
+            task.delay(animData.freezeAt, function()
+                if currentTrack and lastAnimId == thisId then currentTrack:AdjustSpeed(0.00000001) end
+            end)
+        end
+    end
+end
+
+-- [[ LÓGICA DE VOO COM EFEITO DE CÂMERA DINÂMICO ]] --
+local function StartFly()
+    local char = plr.Character
+    if not char then return end
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+    local camera = workspace.CurrentCamera
+    
+    local bg = Instance.new("BodyGyro", hrp); bg.P = 9e4; bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+    local bv = Instance.new("BodyVelocity", hrp); bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+    
+    hum.CameraOffset = Vector3.new(0, 2.5, 0)
+    
+    task.spawn(function()
+        while flying do
+            RunService.RenderStepped:Wait()
+            if not char or not hrp.Parent then break end
+            hum.PlatformStand = true
+            local camCF = camera.CFrame
+            
+            -- Definição de Velocidade
+            if boostLevel == 0 then currentFlySpeed = 50
+            elseif boostLevel == 1 then currentFlySpeed = 160
+            elseif boostLevel == 2 then currentFlySpeed = 380
+            elseif boostLevel == 3 then currentFlySpeed = 780 -- MAX X
+            end
+            
+            local isMoving = moveVector.Magnitude > 0.1
+            
+            -- EFEITO DE CÂMERA (FOV) NO MAX X
+            if isMoving and boostLevel == 3 then
+                -- Aumenta o FOV para 95 para dar efeito de velocidade/distância
+                TweenService:Create(camera, TweenInfo.new(0.5), {FieldOfView = 100}):Play()
+            else
+                -- Retorna ao FOV padrão (70)
+                TweenService:Create(camera, TweenInfo.new(0.5), {FieldOfView = 70}):Play()
+            end
+            
+            if isMoving then
+                local finalDirection = (camCF.LookVector * -moveVector.Z + camCF.RightVector * moveVector.X).Unit
+                bv.velocity = finalDirection * currentFlySpeed
+                
+                if boostLevel == 0 then
+                    PlayUniversalAnim(ANIMS.IDLE)
+                elseif boostLevel == 1 then
+                    PlayUniversalAnim(ANIMS.WALK)
+                else
+                    PlayUniversalAnim(ANIMS.RUN)
+                end
+            else
+                bv.velocity = Vector3.new(0, 0.1, 0)
+                PlayUniversalAnim(ANIMS.IDLE)
+            end
+            bg.CFrame = camCF
+        end
+        
+        -- Limpeza ao sair do FLY
+        TweenService:Create(camera, TweenInfo.new(0.5), {FieldOfView = 70}):Play()
+        if hum then hum.CameraOffset = Vector3.new(0, 0, 0) end
+        bg:Destroy(); bv:Destroy()
+        if char:FindFirstChild("Humanoid") then
+            char.Humanoid.PlatformStand = false
+            char.Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end
+        if currentTrack then currentTrack:Stop(0.5) end
+        lastAnimId = nil
+    end)
+end
+
+-- [[ CONTROLES ]] --
+MainBtn.MouseButton1Click:Connect(function()
+    flying = not flying
+    if flying then
+        MainBtn.Text = "UNFLY"; BoostBtn.Visible = true; AnalogBase.Visible = true; StartFly()
+    else
+        MainBtn.Text = "FLY"; BoostBtn.Visible = false; AnalogBase.Visible = false
+        boostLevel = 0; BoostBtn.Text = "BOOST"
+    end
+end)
+
+BoostBtn.MouseButton1Click:Connect(function()
+    boostLevel = (boostLevel + 1) % 4
+    local texts = {"BOOST", "BOOST 2", "ULTRA", "MAX X"}
+    BoostBtn.Text = texts[boostLevel + 1]
+end)
+
+plr.CharacterAdded:Connect(function()
+    flying = false; MainBtn.Text = "FLY"; AnalogBase.Visible = false
+end)
