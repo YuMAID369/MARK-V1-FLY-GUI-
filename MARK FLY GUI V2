@@ -13,8 +13,8 @@ local activeTouch = nil
 -- [[ CONFIGURAÇÕES DE ANIMAÇÃO ]] --
 local ANIMS = {
     IDLE = {id = 89068086839142, speed = 1, priority = Enum.AnimationPriority.Action4, freezeAt = nil}, 
-    WALK = {id = 115638214618522, speed = 1.5, priority = Enum.AnimationPriority.Action4, freezeAt = nil}, 
-    RUN  = {id = 101539681854382, speed = 1.2, priority = Enum.AnimationPriority.Action4, freezeAt = 1.1}   
+    WALK = {id = 137168637932487, speed = 1.5, priority = Enum.AnimationPriority.Action4, freezeAt = nil}, 
+    RUN  = {id = 138488768673643, speed = 1.2, priority = Enum.AnimationPriority.Action4, freezeAt = 1.1}   
 }
 
 local Assets = Instance.new("ScreenGui", plr.PlayerGui)
