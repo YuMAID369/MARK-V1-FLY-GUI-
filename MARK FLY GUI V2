@@ -1,8 +1,8 @@
--- [[ CUBNIT FLY - V21 SPEED MOTION FOV UPDATE ]] --
+-- [[ CUBNIT FLY - V23 NO-FREEZE & STEALTH START ]] --
 local plr = game.Players.LocalPlayer
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService") -- Para suavizar a câmera
+local TweenService = game:GetService("TweenService")
 
 local flying = false
 local boostLevel = 0 
@@ -10,44 +10,92 @@ local currentFlySpeed = 50
 local moveVector = Vector3.new(0,0,0)
 local activeTouch = nil 
 
--- [[ CONFIGURAÇÕES DE ANIMAÇÃO ]] --
+-- [[ CONFIGURAÇÕES DE ANIMAÇÃO (FREEZE REMOVIDO) ]] --
 local ANIMS = {
-    IDLE = {id = 89068086839142, speed = 1, priority = Enum.AnimationPriority.Action4, freezeAt = nil}, 
-    WALK = {id = 137168637932487, speed = 1.5, priority = Enum.AnimationPriority.Action4, freezeAt = nil}, 
-    RUN  = {id = 138488768673643, speed = 1.2, priority = Enum.AnimationPriority.Action4, freezeAt = 1.1}   
+    IDLE = {id = 89068086839142, speed = 1, priority = Enum.AnimationPriority.Action4}, 
+    WALK = {id = 137168637932487, speed = 1.5, priority = Enum.AnimationPriority.Action4}, 
+    RUN  = {id = 138488768673643, speed = 1.2, priority = Enum.AnimationPriority.Action4}   
 }
 
 local Assets = Instance.new("ScreenGui", plr.PlayerGui)
-Assets.Name = "Cubnit_Fly_v21_Final"
+Assets.Name = "Cubnit_Fly_v23_Final"
 Assets.ResetOnSpawn = false
 
--- [[ INTERFACE ]] --
-local function styleButton(btn, text, color, pos)
+-- [[ BOTÃO MESTRE (ABRIR/FECHAR) ]] --
+local IconButton = Instance.new("ImageButton", Assets)
+IconButton.Name = "MasterToggle"
+IconButton.Size = UDim2.new(0, 60, 0, 60)
+IconButton.Position = UDim2.new(0.02, 0, 0.4, 0)
+IconButton.BackgroundTransparency = 1
+IconButton.Image = "rbxassetid://122210340505146"
+IconButton.ZIndex = 100
+
+-- [[ CONTAINER DOS BOTÕES DE VOO ]] --
+local ButtonFrame = Instance.new("Frame", Assets)
+ButtonFrame.Size = UDim2.new(0, 140, 0, 110)
+ButtonFrame.Position = UDim2.new(0.85, 0, 0.4, 0)
+ButtonFrame.BackgroundTransparency = 1
+ButtonFrame.Visible = false -- Inicia invisível conforme solicitado
+
+-- [[ ESTILIZAÇÃO (PRETO) ]] --
+local function styleButton(btn, text, pos)
     btn.Size = UDim2.new(0, 130, 0, 50)
     btn.Position = pos
-    btn.BackgroundColor3 = color
+    btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     btn.Text = text
-    btn.TextColor3 = Color3.fromRGB(220, 220, 220)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.Font = Enum.Font.GothamBold; btn.TextSize = 22
     btn.ZIndex = 10; btn.BorderSizePixel = 0
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0.5, 0)
     local stroke = Instance.new("UIStroke", btn)
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; stroke.Thickness = 2.5
+    stroke.Color = Color3.fromRGB(50, 50, 50)
 end
 
-local ButtonFrame = Instance.new("Frame", Assets)
-ButtonFrame.Size = UDim2.new(0, 140, 0, 110)
-ButtonFrame.Position = UDim2.new(0.85, 0, 0.4, 0)
-ButtonFrame.BackgroundTransparency = 1
-
 local BoostBtn = Instance.new("TextButton", ButtonFrame)
-styleButton(BoostBtn, "BOOST", Color3.fromRGB(0, 100, 180), UDim2.new(0, 0, 0, 0))
+styleButton(BoostBtn, "BOOST", UDim2.new(0, 0, 0, 0))
 BoostBtn.Visible = false
 
 local MainBtn = Instance.new("TextButton", ButtonFrame)
-styleButton(MainBtn, "FLY", Color3.fromRGB(80, 20, 30), UDim2.new(0, 0, 0, 55))
+styleButton(MainBtn, "FLY", UDim2.new(0, 0, 0, 55))
 
--- Analógico Invisível
+-- [[ SISTEMA DE ARRASTE (DRAGGABLE) ]] --
+local function makeDraggable(guiObj, targetFrame)
+    local dragging, dragInput, dragStart, startPos
+    guiObj.InputBegan:Connect(function(input)
+        if targetFrame == ButtonFrame and flying then return end
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; dragStart = input.Position; startPos = targetFrame.Position
+            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+        end
+    end)
+    guiObj.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+    end)
+    UIS.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            targetFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+makeDraggable(MainBtn, ButtonFrame)
+makeDraggable(IconButton, IconButton)
+
+-- [[ LÓGICA DO BOTÃO MESTRE (CLIQUE DUPLO E TOGGLE) ]] --
+local lastClick = 0
+IconButton.MouseButton1Click:Connect(function()
+    local now = tick()
+    if now - lastClick < 0.35 then
+        Assets:Destroy()
+        return
+    end
+    lastClick = now
+    ButtonFrame.Visible = not ButtonFrame.Visible
+end)
+
+-- [[ ANALÓGICO INVISÍVEL ]] --
 local AnalogBase = Instance.new("Frame", Assets)
 AnalogBase.Size = UDim2.new(0, 220, 0, 220)
 AnalogBase.Position = UDim2.new(0.05, 0, 0.58, 0)
@@ -77,7 +125,7 @@ UIS.InputEnded:Connect(function(input)
     if input == activeTouch then activeTouch = nil; moveVector = Vector3.new(0, 0, 0) end
 end)
 
--- [[ SISTEMA DE ANIMAÇÃO ]] --
+-- [[ SISTEMA DE ANIMAÇÃO (SEM LÓGICA DE FREEZE) ]] --
 local currentTrack = nil
 local lastAnimId = nil
 
@@ -98,16 +146,10 @@ local function PlayUniversalAnim(animData)
     if currentTrack then
         currentTrack.Priority = animData.priority
         currentTrack:Play(0.3); currentTrack:AdjustSpeed(animData.speed)
-        if animData.freezeAt then
-            local thisId = animIdStr
-            task.delay(animData.freezeAt, function()
-                if currentTrack and lastAnimId == thisId then currentTrack:AdjustSpeed(0.00000001) end
-            end)
-        end
     end
 end
 
--- [[ LÓGICA DE VOO COM EFEITO DE CÂMERA DINÂMICO ]] --
+-- [[ LÓGICA DE VOO ]] --
 local function StartFly()
     local char = plr.Character
     if not char then return end
@@ -127,35 +169,26 @@ local function StartFly()
             hum.PlatformStand = true
             local camCF = camera.CFrame
             
-            -- Definição de Velocidade
             if boostLevel == 0 then currentFlySpeed = 50
             elseif boostLevel == 1 then currentFlySpeed = 160
             elseif boostLevel == 2 then currentFlySpeed = 380
-            elseif boostLevel == 3 then currentFlySpeed = 780 -- MAX X
+            elseif boostLevel == 3 then currentFlySpeed = 780
             end
             
             local isMoving = moveVector.Magnitude > 0.1
             
-            -- EFEITO DE CÂMERA (FOV) NO MAX X
             if isMoving and boostLevel == 3 then
-                -- Aumenta o FOV para 95 para dar efeito de velocidade/distância
                 TweenService:Create(camera, TweenInfo.new(0.5), {FieldOfView = 100}):Play()
             else
-                -- Retorna ao FOV padrão (70)
                 TweenService:Create(camera, TweenInfo.new(0.5), {FieldOfView = 70}):Play()
             end
             
             if isMoving then
                 local finalDirection = (camCF.LookVector * -moveVector.Z + camCF.RightVector * moveVector.X).Unit
                 bv.velocity = finalDirection * currentFlySpeed
-                
-                if boostLevel == 0 then
-                    PlayUniversalAnim(ANIMS.IDLE)
-                elseif boostLevel == 1 then
-                    PlayUniversalAnim(ANIMS.WALK)
-                else
-                    PlayUniversalAnim(ANIMS.RUN)
-                end
+                if boostLevel == 0 then PlayUniversalAnim(ANIMS.IDLE)
+                elseif boostLevel == 1 then PlayUniversalAnim(ANIMS.WALK)
+                else PlayUniversalAnim(ANIMS.RUN) end
             else
                 bv.velocity = Vector3.new(0, 0.1, 0)
                 PlayUniversalAnim(ANIMS.IDLE)
@@ -163,7 +196,6 @@ local function StartFly()
             bg.CFrame = camCF
         end
         
-        -- Limpeza ao sair do FLY
         TweenService:Create(camera, TweenInfo.new(0.5), {FieldOfView = 70}):Play()
         if hum then hum.CameraOffset = Vector3.new(0, 0, 0) end
         bg:Destroy(); bv:Destroy()
